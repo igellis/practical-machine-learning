@@ -1,0 +1,140 @@
+---
+title: "Practical machine learning"
+author: "Isadora"
+date: "14-3-2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+In this report a model is build with the goal to predict the manner in which people did an exercise. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. The data used comes from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
+
+Described through this document is:
+1. how the model is build
+2. how cross validation is used
+3. what the expected out of sample error is
+4. why certain choices were made. 
+5. predictions for 20 different test cases.
+
+## Basic set up
+Set seed for reproducible results, load needed libraries, and load needed data (trainingdata and predictiondata).
+
+### set seed for reproducible results
+
+```{r parameters, echo = T}
+set.seed(1234)
+```
+
+### load libraries
+
+```{r load libraries, echo = T}
+library(readr)
+library(caret)
+library(randomForest)
+library(e1071)
+library(doParallel)
+```
+
+### load data and keep only columns without NA's.
+```{r loading data, echo =T }
+
+trainingdata     <- read_csv("~/Algemeen/Personal Development/Dat science certification/pml-training.csv")
+predictiondata   <- read_csv("~/Algemeen/Personal Development/Dat science certification/pml-testing.csv")
+
+#do not use columns including na
+trainingdata     <-trainingdata[,colSums(is.na(trainingdata)) == 0]
+predictiondata     <-predictiondata[,colSums(is.na(predictiondata)) == 0]
+```
+
+## Building the model
+The model is build with a 70% train set and a 30% test set, where only variables were used that do not contain NA's. The model predicts the variable classe.
+Also, variables that are not predictors are deleted. 
+Furthermore k-fold cross validation, where k is 4, was used, also using parallel processing to spered up the process.
+In the process of corss validation also the train and test data sets where 70-30% and all variables were scaled and centered.
+The algorithm used was a random forest and the performance metric Áccuracy'.
+
+
+### only select variables that are predictors
+```{r select vars, echo =T }
+trainingdata_vars   <-trainingdata[,-c(1:7)]
+prediction_vars    <-predictiondata[,-c(1:7)]
+```
+
+### set up train and test set with 70 - 30 % distirbution
+
+```{r train test set, echo =T }
+idtrain    <- createDataPartition(trainingdata_vars$classe, p = 0.7, list = FALSE)
+train     <- trainingdata_vars[idtrain,]
+test      <- trainingdata_vars[-idtrain,]
+```
+
+
+### Cross validation with 4 folds for random forest model, using centered and scaled variables and train-test distribution for all folds with 70-30% using parallel processing.
+```{r cross validation, echo =T }
+model_doc <- "model.RData"
+if (!file.exists(model_doc)) {
+
+    # Parallel cores  
+    ncores <- makeCluster(detectCores() - 1)
+    registerDoParallel(cores=ncores)
+    getDoParWorkers() # 3    
+    
+    # use Random Forest method with Cross Validation, 4 folds
+    model <- train(classe ~ .
+                , data = train
+                , method = "rf"
+                , metric = "Accuracy"  # categorical outcome variable so choose accuracy
+                , preProcess=c("center", "scale") # attempt to improve accuracy by normalising
+                , trControl=trainControl(method = "cv"
+                                        , number = 4 # folds of the training data
+                                        , p= 0.70
+                                        , allowParallel = TRUE 
+#                                       , seeds=NA # don't let workers set seed 
+                                        )
+                )
+
+    save(model, file = "model.RData")
+    stopCluster(ncores)
+} else {
+    # Use cached model  
+    load(file = model_doc, verbose = TRUE)
+}
+```
+
+### in sample model results
+```{r model results, echo =T }
+print(model, digits=4)
+```
+
+## Model results
+The best model has an in sample accuracy of 0.9888 where mtry was 27 and number of trees 500.
+The out of sample accuracy of the best model was 0.9947 resulting in an out of sample error of 0.00526763 and an OOB of 0.79%.
+
+### out of sample model results
+```{r testing model, echo =T }
+pred <- predict(model, newdata=test)
+confusionMatrix(pred, as.factor(test$classe))
+```
+
+### expected out of sample error
+```{r out of sample error, echo =T }
+1 - confusionMatrix(pred, as.factor(test$classe))$overall['Accuracy']
+```
+
+### final model results
+```{r final model, echo =T }
+model$finalModel
+```
+
+### importances of model predictiors
+```{r importances, echo =T }
+varImp(model)
+```
+
+### predictions for 20 cases for the test
+```{r predictions, echo =T }
+print(predict(model, newdata=predictiondata))
+```

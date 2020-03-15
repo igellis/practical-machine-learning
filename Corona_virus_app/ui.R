@@ -11,7 +11,8 @@ library(shiny)
 library(readr)
 library(ggplot2)
 library(dplyr)
-data <- read_csv("C:/Users/iellis/Documents/datasciencecoursera/Module 9/CV_LatLon_21Jan_12Mar.csv")
+
+data <- read_csv("CV_LatLon_21Jan_12Mar.csv")
 data$date <- as.Date(data$date, '%m/%d/%y')
 
 df <-data%>%group_by(country, date)%>%summarize(

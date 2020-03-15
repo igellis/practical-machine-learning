@@ -8,6 +8,15 @@
 #
 
 library(shiny)
+library(readr)
+library(ggplot2)
+library(dplyr)
+
+data <- read_csv("CV_LatLon_21Jan_12Mar.csv")
+data$date <- as.Date(data$date, '%m/%d/%y')
+
+df <-data%>%group_by(country, date)%>%summarize(
+  confirmed = sum(confirmed), recovered = sum(recovered), death = sum(death ))
 
 # Define server logic required to draw a histogram
 shinyServer(function(input, output) {
